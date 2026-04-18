@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Air Quality & Weather Analytics Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f7fa;
+      margin: 0;
+      padding: 20px;
+      color: #2c3e50;
+    }
+    header {
+      text-align: center;
+      padding: 20px 0;
+      background-color: #ffffff;
+      border-bottom: 4px solid #2980b9;
+      margin-bottom: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    h1 { margin: 0; font-size: 26px; letter-spacing: 1px; color: #1a5276; }
+
+    /* ===== Summary Metrics ===== */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      max-width: 1200px;
+      margin: 0 auto 40px auto;
+    }
+    .summary-card {
+      background-color: #ffffff;
+      border-radius: 8px;
+      padding: 15px;
+      text-align: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      cursor: pointer;
+    }
+    .summary-card:hover { transform: translateY(-5px); box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+    .summary-card h2 { font-size: 16px; margin-bottom: 8px; color: #2980b9; }
+    .summary-card p { font-size: 18px; font-weight: bold; color: #2c3e50; margin: 0; }
+
+    /* ===== 2-COLUMN GRID ===== */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr); /* 2 columns exactly */
+      gap: 30px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .card {
+      background-color: #ffffff;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #e0e0e0;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      transition: transform 0.2s ease;
+      display: flex;
+      flex-direction: column;
+    }
+    .card:hover { transform: translateY(-5px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+    .card-header {
+      background-color: #ecf0f1;
+      padding: 15px;
+      border-bottom: 1px solid #ddd;
+      font-weight: bold;
+      font-size: 16px;
+      color: #2c3e50;
+      text-align: center;
+    }
+    .graph-container { 
+      padding: 15px; 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      background-color: #fff; 
+      flex-grow: 1;
+    }
+    /* Controls the size of the charts to look nice in the 2 columns */
+    canvas { width: 100% !important; max-height: 350px !important; }
+    
+    footer { text-align: center; margin-top: 40px; font-size: 12px; color: #7f8c8d; }
+
+    /* Responsive for smaller screens like phones */
+    @media (max-width: 768px) {
+      .dashboard-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Environmental Data Analysis Dashboard</h1>
+</header>
+
+<div class="summary-grid">
+  <div class="summary-card"><h2>Avg AQI (US)</h2><p>119</p></div>
+  <div class="summary-card"><h2>Highest AQI City</h2><p>Delhi (231)</p></div>
+  <div class="summary-card"><h2>Lowest AQI City</h2><p>Chennai (70)</p></div>
+  <div class="summary-card"><h2>Avg Temperature</h2><p>26.6°C</p></div>
+  <div class="summary-card"><h2>Most Humid City</h2><p>Bengaluru (88%)</p></div>
+</div>
+
+<div class="dashboard-grid">
+  <div class="card"><div class="card-header">AQI US Standard</div><div class="graph-container"><canvas id="aqiUS"></canvas></div></div>
+  <div class="card"><div class="card-header">AQI CN Standard</div><div class="graph-container"><canvas id="aqiCN"></canvas></div></div>
+  
+  <div class="card"><div class="card-header">AQI Comparison</div><div class="graph-container"><canvas id="aqiComp"></canvas></div></div>
+  <div class="card"><div class="card-header">Temperature by City</div><div class="graph-container"><canvas id="temp"></canvas></div></div>
+  
+  <div class="card"><div class="card-header">Humidity by City</div><div class="graph-container"><canvas id="humidity"></canvas></div></div>
+  <div class="card"><div class="card-header">Wind Speed</div><div class="graph-container"><canvas id="wind"></canvas></div></div>
+  
+  <div class="card"><div class="card-header">Pressure by City</div><div class="graph-container"><canvas id="pressure"></canvas></div></div>
+  <div class="card"><div class="card-header">Temp vs Humidity</div><div class="graph-container"><canvas id="scatter"></canvas></div></div>
+  
+  <div class="card"><div class="card-header">AQI Ranking US</div><div class="graph-container"><canvas id="ranking"></canvas></div></div>
+  <div class="card"><div class="card-header">Wind Direction (Polar View)</div><div class="graph-container"><canvas id="windDir"></canvas></div></div>
+</div>
+
+<footer>
+  <p>Data Source: DOC-20260416-WA0036.csv | Generated for Academic Project</p>
+</footer>
+
+<script>
+const cities = ["Delhi","Mumbai","Bengaluru","Chennai","Kolkata"];
+const aqiUS = [231,86,96,70,113];
+const aqiCN = [237,74,65,33,59];
+const temp = [24,28,23,29,29];
+const humidity = [25,63,88,85,84];
+const wind = [1.03,1.74,3.09,3.50,4.63];
+const pressure = [1007,1010,1012,1008,1006];
+const windDir = [0,35,240,240,210];
+
+const palette = ["#3498db","#2ecc71","#e74c3c","#f39c12","#9b59b6"];
+
+const chartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } }, 
+  scales: { x: { ticks: { color: "#2c3e50" } }, y: { ticks: { color: "#2c3e50" } } }
+};
+
+new Chart(document.getElementById("aqiUS"), { type: "bar", data: { labels: cities, datasets: [{label:"AQI US", data: aqiUS, backgroundColor: palette}] }, options: chartOptions });
+new Chart(document.getElementById("aqiCN"), { type: "bar", data: { labels: cities, datasets: [{label:"AQI CN", data: aqiCN, backgroundColor: palette}] }, options: chartOptions });
+
+new Chart(document.getElementById("aqiComp"), { type: "bar", data: { labels: cities, datasets: [{label:"US", data: aqiUS, backgroundColor:"#2980b9"},{label:"CN", data: aqiCN, backgroundColor:"#c0392b"}]}, options: { ...chartOptions, plugins: { legend: { display: true, position: 'bottom', labels: { color: "#2c3e50" } } } } });
+
+new Chart(document.getElementById("temp"), { type: "bar", data: { labels: cities, datasets: [{label:"Temperature", data: temp, backgroundColor: palette}] }, options: chartOptions });
+new Chart(document.getElementById("humidity"), { type: "bar", data: { labels: cities, datasets: [{label:"Humidity", data: humidity, backgroundColor: palette}] }, options: chartOptions });
+new Chart(document.getElementById("wind"), { type: "bar", data: { labels: cities, datasets: [{label:"Wind Speed", data: wind, backgroundColor: palette}] }, options: chartOptions });
+new Chart(document.getElementById("pressure"), { type: "bar", data: { labels: cities, datasets: [{label:"Pressure", data: pressure, backgroundColor: palette}] }, options: chartOptions });
+
+// ==== FIXED SCATTER GRAPH ====
+
+// 1. Create separate datasets for each city so they get distinct colors and legends
+const scatterDatasets = cities.map((city, index) => ({
+  label: city,
+  data: [{ x: temp[index], y: humidity[index] }],
+  backgroundColor: palette[index],
+  pointRadius: 6,
+  pointHoverRadius: 8
+}));
+
+// 2. Custom plugin to draw the text labels next to the dots with collision avoidance
+const scatterLabelPlugin = {
+  id: 'scatterLabels',
+  afterDatasetsDraw(chart) {
+    const ctx = chart.ctx;
+    ctx.font = '12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#2c3e50';
+    ctx.textBaseline = 'middle';
+    
+    chart.data.datasets.forEach((dataset, i) => {
+      const meta = chart.getDatasetMeta(i);
+      if (!meta.hidden) {
+        meta.data.forEach((element) => {
+          const { x, y } = element.tooltipPosition();
+          let xOffset = 10;
+          let yOffset = 0;
+          
+          // Separate Chennai and Kolkata labels vertically since their dots overlap
+          if (dataset.label === 'Chennai') {
+            yOffset = -12; // Shift Chennai up
+            xOffset = 5;
+          } else if (dataset.label === 'Kolkata') {
+            yOffset = 12;  // Shift Kolkata down
+            xOffset = 5;
+          }
+
+          ctx.fillText(dataset.label, x + xOffset, y + yOffset);
+        });
+      }
+    });
+  }
+};
+
+// 3. Render the scatter chart
+new Chart(document.getElementById("scatter"), {
+  type: "scatter",
+  data: { datasets: scatterDatasets },
+  plugins: [scatterLabelPlugin], 
+  options: {
+    ...chartOptions,
+    plugins: {
+      legend: {
+        display: true,          
+        position: 'right',      
+        labels: { color: "#2c3e50", usePointStyle: true, boxWidth: 8 }
+      }
+    },
+    scales: {
+      x: { title: { display: true, text: "Temperature (°C)" }, ticks: { color: "#2c3e50" } },
+      y: { title: { display: true, text: "Humidity (%)" }, ticks: { color: "#2c3e50" } }
+    }
+  }
+});
+
+// ==== END FIXED SCATTER GRAPH ====
+
+const rankingData = cities.map((c,i)=>({city:c,aqi:aqiUS[i]})).sort((a,b)=>b.aqi-a.aqi);
+
+new Chart(document.getElementById("ranking"), {
+  type: "bar",
+  data: {
+    labels: rankingData.map(d=>d.city),
+    datasets: [{
+      label: "AQI US Ranking",
+      data: rankingData.map(d=>d.aqi),
+      backgroundColor: ["#e74c3c","#f39c12","#3498db","#9b59b6","#2ecc71"]
+    }]
+  },
+  options: {
+    ...chartOptions,
+    indexAxis: 'y',
+    scales: {
+      x: { beginAtZero: true, ticks: { color: "#2c3e50" } },
+      y: { ticks: { color: "#2c3e50" } }
+    }
+  }
+});
+
+new Chart(document.getElementById("windDir"), {
+  type: "polarArea",
+  data: {
+    labels: cities,
+    datasets: [{
+      label: "Wind Direction",
+      data: windDir,
+      backgroundColor: [
+        "rgba(52, 152, 219, 0.8)", // Delhi - Blue
+        "rgba(46, 204, 113, 0.8)", // Mumbai - Green
+        "rgba(231, 76, 60, 0.8)",  // Bengaluru - Red
+        "rgba(243, 156, 18, 0.8)", // Chennai - Orange
+        "rgba(155, 89, 182, 0.8)"  // Kolkata - Purple
+      ]
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,          
+        position: 'top',        
+        labels: { color: "#2c3e50", boxWidth: 15 }
+      }
+    },
+    scales: {
+      x: { display: false },    
+      y: { display: false },    
+      r: { 
+        ticks: { display: true, color: "#7f8c8d" }, 
+        grid: { color: "rgba(0,0,0,0.05)" }
+      }
+    }
+  }
+});
+</script>
+
+</body>
+</html>
